@@ -253,6 +253,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "⚠️ Mute failed: {error}",
     },
 
+    # ── Unmute ──
+    "unmute_done": {
+        "uz": "🔊 <b>{user}</b> ovozsizlikdan chiqarildi.",
+        "en": "🔊 <b>{user}</b> has been unmuted.",
+    },
+    "unmute_reply": {
+        "uz": "ℹ️ Ovozsizlikdan chiqarish uchun foydalanuvchi xabariga javob bering.",
+        "en": "ℹ️ Reply to a user's message to unmute them.",
+    },
+    "unmute_failed": {
+        "uz": "⚠️ Ovozsizlikdan chiqarish amalga oshmadi: {error}",
+        "en": "⚠️ Unmute failed: {error}",
+    },
+
     # ── Unban ──
     "unban_done": {
         "uz": "✅ <b>{user}</b> blokdan chiqarildi.",
@@ -811,6 +825,56 @@ async def cmd_unban(message: types.Message) -> None:
     except Exception as exc:
         logger.error("Unban failed: %s", exc)
         await message.answer(t("unban_failed", lang, error=str(exc)))
+
+
+# ──────────────────────────────────────────────
+#  /unmute — Restore a user's permissions (admin-only)
+# ──────────────────────────────────────────────
+
+@router.message(Command("unmute"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+async def cmd_unmute(message: types.Message) -> None:
+    """Reply to a muted user's message with /unmute to restore their permissions."""
+    lang = await get_chat_lang(message.chat.id)
+
+    if not await is_chat_admin(message.chat.id, message.from_user.id):
+        await message.answer(t("lang_not_admin", lang))
+        return
+
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.answer(t("unmute_reply", lang))
+        return
+
+    target = message.reply_to_message.from_user
+
+    try:
+        # Restore all permissions (unmute)
+        await bot.restrict_chat_member(
+            chat_id=message.chat.id,
+            user_id=target.id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=True,
+                can_invite_users=True,
+                can_pin_messages=True,
+                can_manage_topics=True,
+            ),
+        )
+        await message.answer(
+            t("unmute_done", lang, user=user_display_name(target)),
+            parse_mode="HTML",
+        )
+    except Exception as exc:
+        logger.error("Unmute failed: %s", exc)
+        await message.answer(t("unmute_failed", lang, error=str(exc)))
 
 
 # ──────────────────────────────────────────────
