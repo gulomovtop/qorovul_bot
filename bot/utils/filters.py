@@ -38,6 +38,12 @@ async def is_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
         return False
 
 
+def is_owner(user_id: int) -> bool:
+    """Check whether *user_id* is the bot owner."""
+    from bot.loader import OWNER_ID
+    return user_id == OWNER_ID
+
+
 _DURATION_RE = re.compile(r"^(\d+)([mhd])$", re.IGNORECASE)
 
 

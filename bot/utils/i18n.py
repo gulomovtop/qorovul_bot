@@ -184,6 +184,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "dur_min": {"en": "{v} min", "ru": "{v} мин", "uz": "{v} daq"},
     "dur_hour": {"en": "{v} h", "ru": "{v} ч", "uz": "{v} soat"},
     "dur_day": {"en": "{v} d", "ru": "{v} д", "uz": "{v} kun"},
+    # ── Owner panel ───────────────────────────────────────────────────
+    "owner_panel": {
+        "en": "👑 <b>Owner Panel</b>\n\nSelect a tool below:",
+        "ru": "👑 <b>Панель владельца</b>\n\nВыберите инструмент:",
+        "uz": "👑 <b>Egasi paneli</b>\n\nQuyidagi vositani tanlang:",
+    },
+    "not_owner": {
+        "en": "❌ This command is only for the bot owner.",
+        "ru": "❌ Эта команда доступна только владельцу бота.",
+        "uz": "❌ Bu buyruq faqat bot egasi uchun.",
+    },
 }
 
 LANG_NAMES = {"en": "English", "ru": "Русский", "uz": "O'zbek"}
