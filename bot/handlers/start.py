@@ -33,6 +33,7 @@ LANG_KB = InlineKeyboardMarkup(
 OWNER_PANEL_KB = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="📋 My Groups", callback_data="owner:groups")],
+        [InlineKeyboardButton(text="🔄 Refresh Groups", callback_data="owner:refresh")],
         [InlineKeyboardButton(text="🌐 Change Language", callback_data="owner:lang")],
     ]
 )
@@ -149,6 +150,45 @@ async def cb_owner_groups(callback: CallbackQuery, bot: Bot, lang: str) -> None:
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="◀️ Back", callback_data="owner:back")]
         ]),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "owner:refresh")
+async def cb_owner_refresh(callback: CallbackQuery, bot: Bot, lang: str) -> None:
+    """Scan historical messages to find active groups and refresh bot statuses."""
+    if not callback.from_user or not is_owner(callback.from_user.id):
+        await callback.answer(t("not_owner", lang), show_alert=True)
+        return
+
+    # Notify progress
+    await callback.message.edit_text(t("refresh_start", lang))  # type: ignore[union-attr]
+
+    async with async_session() as session:
+        group_ids = await group_service.get_all_active_group_ids(session)
+
+        # Check each group against the Telegram API
+        for gid in group_ids:
+            try:
+                member = await bot.get_chat_member(gid, bot.id)
+                chat = await bot.get_chat(gid)
+                
+                is_admin = member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
+                await group_service.upsert_group(session, gid, chat.title, is_admin)
+            except Exception:
+                # If we get an error (bot kicked, chat deleted), just mark as not admin/remove
+                await group_service.remove_group(session, gid)
+
+        # Re-fetch admin group count
+        groups = await group_service.get_admin_groups(session)
+        count = len(groups)
+
+    # Done
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        t("refresh_done", lang, v=count),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Back", callback_data="owner:back")]
+        ])
     )
     await callback.answer()
 

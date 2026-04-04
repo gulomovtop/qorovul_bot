@@ -54,6 +54,7 @@ class Settings(Base):
     ad_text_uz: Mapped[str | None] = mapped_column(Text, nullable=True)
     ad_text_ru: Mapped[str | None] = mapped_column(Text, nullable=True)
     ad_text_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    antiad_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
 
 
 class BotGroup(Base):

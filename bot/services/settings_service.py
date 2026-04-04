@@ -37,3 +37,34 @@ async def get_ad_text(
         select(col).where(Settings.group_id == group_id)
     )
     return result.scalar_one_or_none()
+
+
+async def toggle_antiad(session: AsyncSession, group_id: int) -> bool:
+    """Toggle anti-ad for a group. Return the new state."""
+    result = await session.execute(
+        select(Settings.antiad_enabled).where(Settings.group_id == group_id)
+    )
+    current = result.scalar_one_or_none()
+    new_state = not current if current is not None else False  # default is True, so toggle to False
+
+    stmt = (
+        pg_insert(Settings)
+        .values(group_id=group_id, antiad_enabled=new_state)
+        .on_conflict_do_update(
+            index_elements=["group_id"],
+            set_={"antiad_enabled": new_state},
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+    return new_state
+
+
+async def is_antiad_enabled(session: AsyncSession, group_id: int) -> bool:
+    """Check if anti-ad is enabled for a group (default: True)."""
+    result = await session.execute(
+        select(Settings.antiad_enabled).where(Settings.group_id == group_id)
+    )
+    val = result.scalar_one_or_none()
+    return val if val is not None else True
+

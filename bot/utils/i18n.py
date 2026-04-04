@@ -43,7 +43,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "  /unmute — Unmute a user\n"
             "  /info — Show user info\n\n"
             "<b>4. Anti-Advertisement</b> 🚫\n"
-            "Links and ads from non-admins are automatically deleted.\n\n"
+            "Links and ads from non-admins are automatically deleted.\n"
+            "/antiad — Toggle this feature on/off in your group.\n\n"
             "<b>5. Custom Ad Text</b> 📝\n"
             "/set_ad uz|ru|en Your text — Set replacement message\n\n"
             "<b>6. Language</b> 🌐\n"
@@ -65,7 +66,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "  /unmute — Размутить\n"
             "  /info — Инфо о пользователе\n\n"
             "<b>4. Антиреклама</b> 🚫\n"
-            "Ссылки от обычных пользователей удаляются автоматически.\n\n"
+            "Ссылки от обычных пользователей удаляются автоматически.\n"
+            "/antiad — Включить/выключить эту функцию в группе.\n\n"
             "<b>5. Текст замены рекламы</b> 📝\n"
             "/set_ad uz|ru|en Текст — Установить сообщение\n\n"
             "<b>6. Язык</b> 🌐\n"
@@ -87,7 +89,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "  /unmute — Ovozini qaytarish\n"
             "  /info — Foydalanuvchi haqida\n\n"
             "<b>4. Reklama taqiqi</b> 🚫\n"
-            "Admin bo'lmaganlarning havolalari avtomatik o'chiriladi.\n\n"
+            "Admin bo'lmaganlarning havolalari avtomatik o'chiriladi.\n"
+            "/antiad — Bu xususiyatni guruhda yoqish yoki o'chirish.\n\n"
             "<b>5. Reklama matni</b> 📝\n"
             "/set_ad uz|ru|en Matn — Xabar o'rnatish\n\n"
             "<b>6. Til</b> 🌐\n"
@@ -201,6 +204,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "🚫 Реклама в этой группе запрещена.",
         "uz": "🚫 Bu guruhda reklama taqiqlangan.",
     },
+    "antiad_on": {
+        "en": "✅ Anti-advertisement is now <b>ENABLED</b>.",
+        "ru": "✅ Антиреклама теперь <b>ВКЛЮЧЕНА</b>.",
+        "uz": "✅ Reklama taqiqi endi <b>YONIQ</b>.",
+    },
+    "antiad_off": {
+        "en": "❌ Anti-advertisement is now <b>DISABLED</b>.",
+        "ru": "❌ Антиреклама теперь <b>ВЫКЛЮЧЕНА</b>.",
+        "uz": "❌ Reklama taqiqi endi <b>O'CHIQ</b>.",
+    },
     # ── /set_ad ───────────────────────────────────────────────────────
     "ad_set_success": {
         "en": "✅ Ad text for <b>{lang_name}</b> saved.",
@@ -237,6 +250,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "❌ Use this command in private chat with me.",
         "ru": "❌ Используйте эту команду в личном чате со мной.",
         "uz": "❌ Bu buyruqni men bilan shaxsiy chatda ishlating.",
+    },
+    "refresh_start": {
+        "en": "🔄 <b>Refreshing groups...</b>\n\nI'm scanning previously active groups to check my admin status. This might take a moment.",
+        "ru": "🔄 <b>Обновление групп...</b>\n\nПроверяю свой статус администратора в ранее активных группах. Это может занять некоторое время.",
+        "uz": "🔄 <b>Guruhlar yangilanmoqda...</b>\n\nOldin faol bo'lgan guruhlarda adminligimni tekshiryapman. Bu biroz vaqt olishi mumkin.",
+    },
+    "refresh_done": {
+        "en": "✅ <b>Refresh complete!</b>\n\nFound {v} groups where I'm currently admin.",
+        "ru": "✅ <b>Обновление завершено!</b>\n\nНайдено {v} групп, где я администратор.",
+        "uz": "✅ <b>Yangilash tugadi!</b>\n\nMen admin bo'lgan {v} guruh topildi.",
     },
     "bot_added": {
         "en": "👋 Thanks for adding me! Make me an admin so I can manage the group.",

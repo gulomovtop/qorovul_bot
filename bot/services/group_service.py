@@ -39,3 +39,10 @@ async def get_admin_groups(session: AsyncSession) -> Sequence[BotGroup]:
         select(BotGroup).where(BotGroup.is_admin == True)  # noqa: E712
     )
     return result.scalars().all()
+
+
+async def get_all_active_group_ids(session: AsyncSession) -> list[int]:
+    """Get all distinct group IDs where we have ever seen a message."""
+    from bot.database.models import Message
+    result = await session.execute(select(Message.group_id).distinct())
+    return list(result.scalars().all())

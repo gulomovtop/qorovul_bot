@@ -36,6 +36,17 @@ class AntiAdMiddleware(BaseMiddleware):
         if not contains_ad(event.text):
             return await handler(event, data)
 
+        # Check if anti-ad is enabled for this group
+        try:
+            async with async_session() as session:
+                enabled = await settings_service.is_antiad_enabled(
+                    session, event.chat.id
+                )
+            if not enabled:
+                return await handler(event, data)
+        except Exception:
+            pass  # If DB fails, default to filtering
+
         # Admins are exempt
         bot: Bot = data["bot"]
         if await is_admin(bot, event.chat.id, event.from_user.id):

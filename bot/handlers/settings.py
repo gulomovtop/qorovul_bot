@@ -38,3 +38,19 @@ async def cmd_set_ad(message: Message, bot: Bot, lang: str) -> None:
     await message.reply(
         t("ad_set_success", lang, lang_name=LANG_NAMES[target_lang])
     )
+
+
+@router.message(Command("antiad"))
+async def cmd_antiad(message: Message, bot: Bot, lang: str) -> None:
+    """Toggle anti-ad processing for this group."""
+    if not message.from_user or message.chat.type not in ("group", "supergroup"):
+        return
+    if not await is_admin(bot, message.chat.id, message.from_user.id):
+        await message.reply(t("not_admin", lang))
+        return
+
+    async with async_session() as session:
+        new_state = await settings_service.toggle_antiad(session, message.chat.id)
+
+    key = "antiad_on" if new_state else "antiad_off"
+    await message.reply(t(key, lang))
