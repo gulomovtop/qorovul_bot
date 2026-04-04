@@ -109,6 +109,8 @@ async def cb_lang_select(callback: CallbackQuery, lang: str) -> None:
         await user_service.set_language(session, callback.from_user.id, new_lang)
 
     await callback.message.edit_text(t("lang_selected", new_lang))  # type: ignore[union-attr]
+    # Send the bot guide after language selection
+    await callback.message.answer(t("guide", new_lang))  # type: ignore[union-attr]
     await callback.answer()
 
 

@@ -5,9 +5,9 @@ from typing import Any
 TRANSLATIONS: dict[str, dict[str, str]] = {
     # ── Private /start ───────────────────────────────────────────────
     "welcome_private": {
-        "en": "👋 Hello! I'm a group management bot.\nPlease select your language:",
-        "ru": "👋 Привет! Я бот для управления группами.\nПожалуйста, выберите язык:",
-        "uz": "👋 Salom! Men guruhlarni boshqarish botiman.\nIltimos, tilni tanlang:",
+        "en": "👋 <b>Welcome!</b>\n\nI'm <b>GroupHelp</b> — a powerful group management bot.\n\n🌐 First, please select your language:",
+        "ru": "👋 <b>Добро пожаловать!</b>\n\nЯ <b>GroupHelp</b> — мощный бот для управления группами.\n\n🌐 Сначала выберите язык:",
+        "uz": "👋 <b>Xush kelibsiz!</b>\n\nMen <b>GroupHelp</b> — kuchli guruh boshqaruv boti.\n\n🌐 Avval tilni tanlang:",
     },
     # ── Group welcome ────────────────────────────────────────────────
     "welcome_group": {
@@ -25,6 +25,74 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "✅ Language set to English.",
         "ru": "✅ Язык установлен: Русский.",
         "uz": "✅ Til tanlandi: O'zbek.",
+    },
+    "guide": {
+        "en": (
+            "📖 <b>How I Work</b>\n\n"
+            "<b>1. Add me to a group</b>\n"
+            "Add me and make me an admin so I can manage the group.\n\n"
+            "<b>2. Activity Tracking</b> 📊\n"
+            "/top_day — Top 10 most active users (24h)\n"
+            "/top_week — Top 10 most active users (7 days)\n\n"
+            "<b>3. Admin Commands</b> 🛡\n"
+            "Reply to a message and use:\n"
+            "  /warn — Warn a user (auto-mute after 3)\n"
+            "  /ban — Ban a user\n"
+            "  /unban — Unban a user\n"
+            "  /mute 30m|2h|1d — Mute with duration\n"
+            "  /unmute — Unmute a user\n"
+            "  /info — Show user info\n\n"
+            "<b>4. Anti-Advertisement</b> 🚫\n"
+            "Links and ads from non-admins are automatically deleted.\n\n"
+            "<b>5. Custom Ad Text</b> 📝\n"
+            "/set_ad uz|ru|en Your text — Set replacement message\n\n"
+            "<b>6. Language</b> 🌐\n"
+            "/lang — Change your language anytime"
+        ),
+        "ru": (
+            "📖 <b>Как я работаю</b>\n\n"
+            "<b>1. Добавьте меня в группу</b>\n"
+            "Добавьте меня и сделайте админом для управления группой.\n\n"
+            "<b>2. Отслеживание активности</b> 📊\n"
+            "/top_day — Топ 10 за 24 часа\n"
+            "/top_week — Топ 10 за 7 дней\n\n"
+            "<b>3. Админ-команды</b> 🛡\n"
+            "Ответьте на сообщение и используйте:\n"
+            "  /warn — Предупредить (мут после 3)\n"
+            "  /ban — Забанить\n"
+            "  /unban — Разбанить\n"
+            "  /mute 30m|2h|1d — Замутить\n"
+            "  /unmute — Размутить\n"
+            "  /info — Инфо о пользователе\n\n"
+            "<b>4. Антиреклама</b> 🚫\n"
+            "Ссылки от обычных пользователей удаляются автоматически.\n\n"
+            "<b>5. Текст замены рекламы</b> 📝\n"
+            "/set_ad uz|ru|en Текст — Установить сообщение\n\n"
+            "<b>6. Язык</b> 🌐\n"
+            "/lang — Сменить язык"
+        ),
+        "uz": (
+            "📖 <b>Men qanday ishlayman</b>\n\n"
+            "<b>1. Meni guruhga qo'shing</b>\n"
+            "Meni qo'shing va admin qiling — guruhni boshqaraman.\n\n"
+            "<b>2. Faollik kuzatuvi</b> 📊\n"
+            "/top_day — 24 soat ichida eng faollar\n"
+            "/top_week — 7 kun ichida eng faollar\n\n"
+            "<b>3. Admin buyruqlari</b> 🛡\n"
+            "Xabarga javob berib ishlating:\n"
+            "  /warn — Ogohlantirish (3 tadan keyin mute)\n"
+            "  /ban — Bloklash\n"
+            "  /unban — Blokdan chiqarish\n"
+            "  /mute 30m|2h|1d — Ovozini o'chirish\n"
+            "  /unmute — Ovozini qaytarish\n"
+            "  /info — Foydalanuvchi haqida\n\n"
+            "<b>4. Reklama taqiqi</b> 🚫\n"
+            "Admin bo'lmaganlarning havolalari avtomatik o'chiriladi.\n\n"
+            "<b>5. Reklama matni</b> 📝\n"
+            "/set_ad uz|ru|en Matn — Xabar o'rnatish\n\n"
+            "<b>6. Til</b> 🌐\n"
+            "/lang — Tilni o'zgartirish"
+        ),
     },
     # ── Top ───────────────────────────────────────────────────────────
     "top_header_day": {
