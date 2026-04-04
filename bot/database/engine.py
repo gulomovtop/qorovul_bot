@@ -22,7 +22,10 @@ _ssl_ctx.verify_mode = ssl_mod.CERT_NONE
 engine = create_async_engine(
     DATABASE_URL,
     poolclass=NullPool,  # Best for serverless — no persistent pool
-    connect_args={"ssl": _ssl_ctx},
+    connect_args={
+        "ssl": _ssl_ctx,
+        "statement_cache_size": 0,  # Required for Supabase PgBouncer
+    },
 )
 
 async_session = async_sessionmaker(
