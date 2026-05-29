@@ -1,167 +1,118 @@
-# GroupHelp Bot — Telegram Group Management
+# Group Management Bot
 
-Production-ready Telegram group management bot built with **aiogram 3.x**, **FastAPI**, **Supabase PostgreSQL**, deployed on **Vercel**.
+A production-ready Telegram group management bot built with **Node.js + Telegraf + SQLite**.
 
-## Features
+## Tech Stack
 
-| Feature | Description |
-|---------|-------------|
-| 📊 Activity Tracking | `/top_day`, `/top_week` with medal leaderboards |
-| ⚠️ Admin Commands | `/warn`, `/ban`, `/unban`, `/mute`, `/unmute`, `/info` |
-| 🚫 Anti-Advertisement | Auto-detects and removes links/ads from non-admins |
-| 📝 Custom Ad Text | `/set_ad` — per-language ad replacement messages |
-| 🌐 Multilingual | Uzbek, Russian, English with inline language selection |
-| 👋 Welcome System | Greets new members with language choice buttons |
+- **Runtime**: Node.js
+- **Framework**: Telegraf v4
+- **Database**: SQLite via better-sqlite3
+- **Environment**: dotenv
 
----
+## Setup
 
-## 1. Supabase Database Setup
+1. **Clone the repo & install dependencies**
+   ```bash
+   npm install
+   ```
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** and run this SQL:
+2. **Configure environment**
 
-```sql
--- Users table
-CREATE TABLE IF NOT EXISTS users (
-    user_id   BIGINT PRIMARY KEY,
-    username  TEXT,
-    language  TEXT NOT NULL DEFAULT 'en'
-);
+   Edit the `.env` file:
+   ```
+   BOT_TOKEN=your_bot_token_here
+   OWNER_ID=your_telegram_user_id_here
+   ```
+   Get your `OWNER_ID` by messaging [@userinfobot](https://t.me/userinfobot) on Telegram.
 
--- Messages table (activity tracking)
-CREATE TABLE IF NOT EXISTS messages (
-    id        SERIAL PRIMARY KEY,
-    user_id   BIGINT NOT NULL,
-    group_id  BIGINT NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS ix_messages_group_ts
-    ON messages (group_id, timestamp);
-CREATE INDEX IF NOT EXISTS ix_messages_group_user
-    ON messages (group_id, user_id);
+3. **Start the bot**
+   ```bash
+   node index.js
+   ```
+   Or with auto-restart on file changes (Node.js 18+):
+   ```bash
+   npm run dev
+   ```
 
--- Warnings table
-CREATE TABLE IF NOT EXISTS warns (
-    id        SERIAL PRIMARY KEY,
-    user_id   BIGINT NOT NULL,
-    group_id  BIGINT NOT NULL,
-    count     INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT uq_warns_user_group UNIQUE (user_id, group_id)
-);
+4. **Add the bot to your group as admin** with these permissions:
+   - ✅ Delete messages
+   - ✅ Ban users
+   - ✅ Restrict members
 
--- Settings table (ad replacement text)
-CREATE TABLE IF NOT EXISTS settings (
-    group_id   BIGINT PRIMARY KEY,
-    ad_text_uz TEXT,
-    ad_text_ru TEXT,
-    ad_text_en TEXT
-);
-
--- Bot groups table (tracks where the bot is admin)
-CREATE TABLE IF NOT EXISTS bot_groups (
-    group_id   BIGINT PRIMARY KEY,
-    title      TEXT,
-    is_admin   BOOLEAN NOT NULL DEFAULT FALSE
-);
-```
-
-3. Copy your **connection string** from **Settings → Database → Connection string → URI** (use the **Transaction pooler** for serverless).
+The database (`data/bot.db`) is created automatically on first run.
 
 ---
 
-## 2. Environment Variables
+## Commands
 
-| Variable | Example |
-|----------|---------|
-| `BOT_TOKEN` | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` |
-| `DATABASE_URL` | `postgresql://postgres.xxxx:password@aws-0-region.pooler.supabase.com:6543/postgres` |
-| `WEBHOOK_URL` | `https://your-project.vercel.app/webhook` |
-
----
-
-## 3. Deploy to Vercel
-
-### Option A: Vercel CLI
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# From the project root
-vercel
-
-# Set environment variables
-vercel env add BOT_TOKEN
-vercel env add DATABASE_URL
-vercel env add WEBHOOK_URL
-
-# Deploy to production
-vercel --prod
-```
-
-### Option B: Vercel Dashboard
-
-1. Push the code to a GitHub repo
-2. Import the repo at [vercel.com/new](https://vercel.com/new)
-3. Add the three environment variables in **Settings → Environment Variables**
-4. Deploy
+| Command | Description | Who |
+|---|---|---|
+| `/admin` | Promote user to bot-admin (reply) | Owner only |
+| `/warn [reason]` | Warn a user — 3 warnings = auto-mute 6h (reply) | Admins |
+| `/unwarn` | Remove the most recent warning (reply) | Admins |
+| `/warnings` | Check user warning count (reply) | Admins |
+| `/mute [Xh\|Xd]` | Mute user for duration, default 1h (reply) | Admins |
+| `/unmute` | Unmute user (reply) | Admins |
+| `/ban [reason]` | Ban user from group (reply) | Admins |
+| `/unban` | Unban user (reply) | Admins |
+| `/stats` | Group statistics | Everyone |
+| `/userinfo` | User profile — self or reply target | Everyone |
+| `/antiflood on\|off` | Toggle flood protection | Admins |
+| `/antispam on\|off` | Toggle spam protection | Admins |
 
 ---
 
-## 4. Set Webhook
+## Auto-Protection
 
-After deployment, visit this URL **once** in your browser:
+### Antiflood
+Detects users sending too many messages too fast.
+- **Trigger**: more than `antiflood_limit` messages in `antiflood_window` seconds (default: 5 msgs / 3s)
+- **Action 1**: Warning message
+- **Action 2**: Mute for 10 minutes
 
-```
-https://your-project.vercel.app/set-webhook
-```
+Enable per group: `/antiflood on`
 
-You should see `{"ok": true, "webhook": "https://..."}`.
+### Antispam
+Detects repeated identical messages.
+- **Trigger**: same message sent within `antispam_window` seconds (default: 10s window, 3 repeats)
+- **Action 1**: Delete message + warning
+- **Action 2**: Mute for 30 minutes
 
-Alternatively, the webhook is automatically set on the first cold start.
+Enable per group: `/antispam on`
 
 ---
 
-## 5. Bot Commands Reference
+## Permissions
 
-### All Users
-| Command | Description |
-|---------|-------------|
-| `/start` | Start bot (private chat) |
-| `/lang` | Change language |
-| `/top_day` | Top 10 users — last 24 hours |
-| `/top_week` | Top 10 users — last 7 days |
-| `/mygroups` | List groups where bot is admin + invite links (private chat) |
-
-### Admins Only (reply to a message)
-| Command | Description |
-|---------|-------------|
-| `/warn` | Warn user (auto-mute at 3) |
-| `/ban` | Ban user |
-| `/unban` | Unban user |
-| `/mute 30m\|2h\|1d` | Mute with duration |
-| `/unmute` | Unmute user |
-| `/info` | Show user ID & username |
-| `/set_ad uz\|ru\|en <text>` | Set ad replacement text |
+- **Owner** (`OWNER_ID` in `.env`): Can use `/admin` to promote users
+- **Admins**: Telegram admins + owner + bot-promoted users (via `/admin`)
+- **Everyone**: `/stats`, `/userinfo`
 
 ---
 
 ## Project Structure
 
 ```
-├── api/
-│   └── index.py          # Vercel entry point (FastAPI)
-├── bot/
-│   ├── loader.py          # Bot + Dispatcher init
-│   ├── handlers/          # Command handlers
-│   ├── middlewares/        # i18n, tracking, anti-ad
-│   ├── services/          # Business logic (DB queries)
-│   ├── database/          # SQLAlchemy engine + models
-│   └── utils/             # Translations, filters
-├── requirements.txt
-└── vercel.json
+├── index.js              # Entry point
+├── config/
+│   └── config.js         # Env config loader
+├── src/
+│   ├── database/
+│   │   └── db.js         # SQLite init & schema
+│   ├── utils/
+│   │   └── permissions.js
+│   ├── commands/
+│   │   ├── admin.js
+│   │   ├── ban.js
+│   │   ├── mute.js
+│   │   ├── stats.js
+│   │   ├── userinfo.js
+│   │   └── warn.js
+│   └── handlers/
+│       ├── antiflood.js
+│       ├── antispam.js
+│       └── newMember.js
+├── data/                 # Auto-created — SQLite DB lives here
+├── .env                  # Your secrets (not in git)
+└── package.json
 ```
-
-## License
-
-MIT
