@@ -1,14 +1,10 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 const { requireAdmin } = require('../utils/permissions');
 
-// Helper to get display name for a user
 function getUsername(user) {
   return user.username ? `@${user.username}` : user.first_name;
 }
 
-/**
- * /warn [reason] — Warn a user (3 warnings = 6h auto-mute)
- */
 function registerWarn(bot) {
   bot.command('warn', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -25,14 +21,20 @@ function registerWarn(bot) {
 
     try {
       // Insert warning
-      db.prepare(
-        'INSERT INTO warnings (user_id, group_id, reason, date, warned_by) VALUES (?, ?, ?, ?, ?)'
-      ).run(target.id, groupId, reason, new Date().toISOString(), ctx.from.id);
+      await supabase.from('warnings').insert({
+        user_id: target.id,
+        group_id: groupId,
+        reason,
+        date: new Date().toISOString(),
+        warned_by: ctx.from.id,
+      });
 
       // Count warnings
-      const { count } = db
-        .prepare('SELECT COUNT(*) as count FROM warnings WHERE user_id = ? AND group_id = ?')
-        .get(target.id, groupId);
+      const { count } = await supabase
+        .from('warnings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
 
       if (count < 3) {
         return ctx.reply(
@@ -40,7 +42,7 @@ function registerWarn(bot) {
         );
       }
 
-      // 3 warnings reached — mute for 6 hours
+      // 3 warnings — mute 6 hours
       const sixHoursSeconds = 6 * 60 * 60;
       const untilDate = Math.floor(Date.now() / 1000) + sixHoursSeconds;
       const untilISO = new Date(untilDate * 1000).toISOString();
@@ -57,33 +59,33 @@ function registerWarn(bot) {
         until_date: untilDate,
       });
 
-      db.prepare(
-        'INSERT INTO mutes (user_id, group_id, until, muted_by) VALUES (?, ?, ?, ?)'
-      ).run(target.id, groupId, untilISO, ctx.from.id);
+      await supabase.from('mutes').insert({
+        user_id: target.id,
+        group_id: groupId,
+        until: untilISO,
+        muted_by: ctx.from.id,
+      });
 
       // Reset warnings
-      db.prepare(
-        'DELETE FROM warnings WHERE user_id = ? AND group_id = ?'
-      ).run(target.id, groupId);
+      await supabase
+        .from('warnings')
+        .delete()
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
 
       return ctx.reply(
         `🔇 ${getUsername(target)} has been muted for 6 hours — 3 warnings reached. Warnings have been reset.`
       );
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-      if (err.description && err.description.includes('not enough rights')) {
-        return ctx.reply(
-          "🚫 I don't have enough permissions. Please make me an admin with all permissions"
-        );
+      if (err.description?.includes('not enough rights')) {
+        return ctx.reply("🚫 I don't have enough permissions. Please make me an admin with all permissions");
       }
       return ctx.reply('❌ Failed to warn user');
     }
   });
 }
 
-/**
- * /unwarn — Remove the most recent warning from a user
- */
 function registerUnwarn(bot) {
   bot.command('unwarn', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -96,31 +98,36 @@ function registerUnwarn(bot) {
     const target = ctx.message.reply_to_message.from;
     const groupId = ctx.chat.id;
 
-    const latest = db
-      .prepare(
-        'SELECT id FROM warnings WHERE user_id = ? AND group_id = ? ORDER BY id DESC LIMIT 1'
-      )
-      .get(target.id, groupId);
+    try {
+      const { data: latest } = await supabase
+        .from('warnings')
+        .select('id')
+        .eq('user_id', target.id)
+        .eq('group_id', groupId)
+        .order('id', { ascending: false })
+        .limit(1)
+        .single();
 
-    if (!latest) {
-      return ctx.reply(`✅ ${getUsername(target)} has no warnings to remove`);
+      if (!latest) {
+        return ctx.reply(`✅ ${getUsername(target)} has no warnings to remove`);
+      }
+
+      await supabase.from('warnings').delete().eq('id', latest.id);
+
+      const { count } = await supabase
+        .from('warnings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
+
+      return ctx.reply(`✅ 1 warning removed from ${getUsername(target)} (now ${count}/3)`);
+    } catch (err) {
+      console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
+      return ctx.reply('❌ Failed to remove warning');
     }
-
-    db.prepare('DELETE FROM warnings WHERE id = ?').run(latest.id);
-
-    const { count } = db
-      .prepare('SELECT COUNT(*) as count FROM warnings WHERE user_id = ? AND group_id = ?')
-      .get(target.id, groupId);
-
-    return ctx.reply(
-      `✅ 1 warning removed from ${getUsername(target)} (now ${count}/3)`
-    );
   });
 }
 
-/**
- * /warnings — Check current warning count for a user
- */
 function registerWarnings(bot) {
   bot.command('warnings', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -133,9 +140,11 @@ function registerWarnings(bot) {
     const target = ctx.message.reply_to_message.from;
     const groupId = ctx.chat.id;
 
-    const { count } = db
-      .prepare('SELECT COUNT(*) as count FROM warnings WHERE user_id = ? AND group_id = ?')
-      .get(target.id, groupId);
+    const { count } = await supabase
+      .from('warnings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', target.id)
+      .eq('group_id', groupId);
 
     return ctx.reply(`⚠️ ${getUsername(target)} has ${count}/3 warnings`);
   });

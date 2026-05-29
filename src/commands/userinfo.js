@@ -1,8 +1,5 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 
-/**
- * /userinfo — Full user profile (self or reply target)
- */
 module.exports = (bot) => {
   bot.command('userinfo', async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -12,59 +9,71 @@ module.exports = (bot) => {
     const target = ctx.message.reply_to_message
       ? ctx.message.reply_to_message.from
       : ctx.from;
-
     const groupId = ctx.chat.id;
 
-    // DB queries
-    const { count: warnCount } = db
-      .prepare('SELECT COUNT(*) as count FROM warnings WHERE user_id = ? AND group_id = ?')
-      .get(target.id, groupId);
-
-    const mute = db
-      .prepare('SELECT until FROM mutes WHERE user_id = ? AND group_id = ? ORDER BY id DESC LIMIT 1')
-      .get(target.id, groupId);
-
-    const ban = db
-      .prepare('SELECT 1 FROM bans WHERE user_id = ? AND group_id = ?')
-      .get(target.id, groupId);
-
-    const userRow = db
-      .prepare('SELECT message_count FROM users WHERE user_id = ? AND group_id = ?')
-      .get(target.id, groupId);
-
-    const messageCount = userRow ? userRow.message_count : 0;
-
-    // Determine status
-    let status = '✅ Active';
-    if (ban) {
-      status = '🚫 Banned';
-    } else if (mute) {
-      const untilDate = mute.until ? new Date(mute.until) : null;
-      if (!untilDate || untilDate > new Date()) {
-        status = '🔇 Muted';
-      }
-    }
-
-    // Get live Telegram status
     try {
-      const member = await ctx.telegram.getChatMember(groupId, target.id);
-      if (member.status === 'kicked') status = '🚫 Banned';
-      else if (member.status === 'restricted') status = '🔇 Muted';
+      const { count: warnCount } = await supabase
+        .from('warnings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
+
+      const { data: mute } = await supabase
+        .from('mutes')
+        .select('until')
+        .eq('user_id', target.id)
+        .eq('group_id', groupId)
+        .order('id', { ascending: false })
+        .limit(1)
+        .single();
+
+      const { data: ban } = await supabase
+        .from('bans')
+        .select('user_id')
+        .eq('user_id', target.id)
+        .eq('group_id', groupId)
+        .single();
+
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('message_count')
+        .eq('user_id', target.id)
+        .eq('group_id', groupId)
+        .single();
+
+      const messageCount = userRow?.message_count || 0;
+
+      // Determine status
+      let status = '✅ Active';
+      if (ban) {
+        status = '🚫 Banned';
+      } else if (mute?.until) {
+        const untilDate = new Date(mute.until);
+        if (untilDate > new Date()) status = '🔇 Muted';
+      }
+
+      // Cross-check with live Telegram status
+      try {
+        const member = await ctx.telegram.getChatMember(groupId, target.id);
+        if (member.status === 'kicked') status = '🚫 Banned';
+        else if (member.status === 'restricted') status = '🔇 Muted';
+      } catch (_) {}
+
+      const fullName = [target.first_name, target.last_name].filter(Boolean).join(' ');
+      const username = target.username ? `@${target.username}` : 'N/A';
+
+      return ctx.reply(
+        `👤 User Info:\n` +
+        `├ Name: ${fullName}\n` +
+        `├ Username: ${username}\n` +
+        `├ ID: ${target.id}\n` +
+        `├ Warnings: ${warnCount || 0}/3\n` +
+        `├ Status: ${status}\n` +
+        `└ Messages sent: ${messageCount}`
+      );
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
+      return ctx.reply('❌ Failed to fetch user info');
     }
-
-    const fullName = [target.first_name, target.last_name].filter(Boolean).join(' ');
-    const username = target.username ? `@${target.username}` : 'N/A';
-
-    return ctx.reply(
-      `👤 User Info:\n` +
-      `├ Name: ${fullName}\n` +
-      `├ Username: ${username}\n` +
-      `├ ID: ${target.id}\n` +
-      `├ Warnings: ${warnCount}/3\n` +
-      `├ Status: ${status}\n` +
-      `└ Messages sent: ${messageCount}`
-    );
   });
 };

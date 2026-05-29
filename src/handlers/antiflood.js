@@ -1,57 +1,51 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 
-// In-memory flood tracker: "userId:groupId" → { timestamps: [], warned: false }
-const floodMap = new Map();
-
-/**
- * Antiflood middleware — call this on every group text message
- */
 async function antifloodHandler(ctx, next) {
-  // Only handle group messages
   if (!['group', 'supergroup'].includes(ctx.chat?.type)) return next();
   if (!ctx.from || ctx.from.is_bot) return next();
 
   const groupId = ctx.chat.id;
+  const userId = ctx.from.id;
 
-  // Load settings for this group
-  const settings = db
-    .prepare('SELECT antiflood_enabled, antiflood_limit, antiflood_window FROM settings WHERE group_id = ?')
-    .get(groupId);
+  // Load settings
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('antiflood_enabled, antiflood_limit, antiflood_window')
+    .eq('group_id', groupId)
+    .single();
 
-  if (!settings || !settings.antiflood_enabled) return next();
+  if (!settings?.antiflood_enabled) return next();
 
   const { antiflood_limit, antiflood_window } = settings;
-  const key = `${ctx.from.id}:${groupId}`;
   const now = Date.now();
-
-  if (!floodMap.has(key)) {
-    floodMap.set(key, { timestamps: [], warned: false });
-  }
-
-  const entry = floodMap.get(key);
-
-  // Add current timestamp
-  entry.timestamps.push(now);
-
-  // Filter to only keep timestamps within the window
   const windowMs = antiflood_window * 1000;
-  entry.timestamps = entry.timestamps.filter((t) => now - t < windowMs);
 
-  if (entry.timestamps.length > antiflood_limit) {
-    if (!entry.warned) {
-      // First offense: warn
-      entry.warned = true;
-      await ctx.reply(
-        `⚡ @${ctx.from.username || ctx.from.first_name} slow down!`
-      );
+  // Get or create flood tracker entry
+  const { data: entry } = await supabase
+    .from('flood_tracker')
+    .select('timestamps, warned')
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .single();
+
+  const timestamps = ((entry?.timestamps) || []).filter((t) => now - t < windowMs);
+  timestamps.push(now);
+
+  if (timestamps.length > antiflood_limit) {
+    if (!entry?.warned) {
+      // First offense — warn
+      await supabase
+        .from('flood_tracker')
+        .upsert({ user_id: userId, group_id: groupId, timestamps: [], warned: true }, { onConflict: 'user_id,group_id' });
+
+      await ctx.reply(`⚡ @${ctx.from.username || ctx.from.first_name} slow down!`);
     } else {
-      // Second offense: mute for 10 minutes
-      const tenMinSeconds = 10 * 60;
-      const untilDate = Math.floor(now / 1000) + tenMinSeconds;
+      // Second offense — mute 10 min
+      const untilDate = Math.floor(now / 1000) + 600;
       const untilISO = new Date(untilDate * 1000).toISOString();
 
       try {
-        await ctx.telegram.restrictChatMember(groupId, ctx.from.id, {
+        await ctx.telegram.restrictChatMember(groupId, userId, {
           permissions: {
             can_send_messages: false,
             can_send_audios: false,
@@ -63,23 +57,24 @@ async function antifloodHandler(ctx, next) {
           until_date: untilDate,
         });
 
-        db.prepare(
-          'INSERT INTO mutes (user_id, group_id, until, muted_by) VALUES (?, ?, ?, ?)'
-        ).run(ctx.from.id, groupId, untilISO, ctx.botInfo.id);
-
-        await ctx.reply(
-          `🔇 @${ctx.from.username || ctx.from.first_name} has been muted for 10 minutes for flooding`
-        );
+        await supabase.from('mutes').insert({ user_id: userId, group_id: groupId, until: untilISO, muted_by: 0 });
+        await ctx.reply(`🔇 @${ctx.from.username || ctx.from.first_name} has been muted for 10 minutes for flooding`);
       } catch (err) {
         console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
       }
-    }
 
-    // Reset timestamps after action
-    entry.timestamps = [];
-    entry.warned = false;
-    return; // Don't call next — message is considered handled
+      // Reset tracker
+      await supabase
+        .from('flood_tracker')
+        .upsert({ user_id: userId, group_id: groupId, timestamps: [], warned: false }, { onConflict: 'user_id,group_id' });
+    }
+    return;
   }
+
+  // Update timestamps
+  await supabase
+    .from('flood_tracker')
+    .upsert({ user_id: userId, group_id: groupId, timestamps, warned: entry?.warned || false }, { onConflict: 'user_id,group_id' });
 
   return next();
 }

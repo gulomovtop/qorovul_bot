@@ -1,38 +1,20 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 const { requireAdmin } = require('../utils/permissions');
 
 function getUsername(user) {
   return user.username ? `@${user.username}` : user.first_name;
 }
 
-/**
- * Parse duration string: "2h" → seconds, "1d" → seconds, default 1h
- */
 function parseDuration(arg) {
   if (!arg) return { seconds: 3600, label: '1 hour' };
-
   const match = arg.match(/^(\d+)(h|d)$/i);
   if (!match) return { seconds: 3600, label: '1 hour' };
-
   const value = parseInt(match[1], 10);
   const unit = match[2].toLowerCase();
-
-  if (unit === 'h') {
-    return {
-      seconds: value * 3600,
-      label: `${value} hour${value !== 1 ? 's' : ''}`,
-    };
-  } else {
-    return {
-      seconds: value * 86400,
-      label: `${value} day${value !== 1 ? 's' : ''}`,
-    };
-  }
+  if (unit === 'h') return { seconds: value * 3600, label: `${value} hour${value !== 1 ? 's' : ''}` };
+  return { seconds: value * 86400, label: `${value} day${value !== 1 ? 's' : ''}` };
 }
 
-/**
- * /mute [Xh|Xd] — Mute a user
- */
 function registerMute(bot) {
   bot.command('mute', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -46,7 +28,6 @@ function registerMute(bot) {
     const groupId = ctx.chat.id;
     const args = ctx.message.text.split(' ').slice(1);
     const { seconds, label } = parseDuration(args[0]);
-
     const untilDate = Math.floor(Date.now() / 1000) + seconds;
     const untilISO = new Date(untilDate * 1000).toISOString();
 
@@ -63,26 +44,24 @@ function registerMute(bot) {
         until_date: untilDate,
       });
 
-      db.prepare(
-        'INSERT INTO mutes (user_id, group_id, until, muted_by) VALUES (?, ?, ?, ?)'
-      ).run(target.id, groupId, untilISO, ctx.from.id);
+      await supabase.from('mutes').insert({
+        user_id: target.id,
+        group_id: groupId,
+        until: untilISO,
+        muted_by: ctx.from.id,
+      });
 
       return ctx.reply(`🔇 ${getUsername(target)} has been muted for ${label}`);
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-      if (err.description && err.description.includes('not enough rights')) {
-        return ctx.reply(
-          "🚫 I don't have enough permissions. Please make me an admin with all permissions"
-        );
+      if (err.description?.includes('not enough rights')) {
+        return ctx.reply("🚫 I don't have enough permissions. Please make me an admin with all permissions");
       }
       return ctx.reply('❌ Failed to mute user');
     }
   });
 }
 
-/**
- * /unmute — Unmute a user
- */
 function registerUnmute(bot) {
   bot.command('unmute', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -112,17 +91,17 @@ function registerUnmute(bot) {
         },
       });
 
-      db.prepare(
-        'DELETE FROM mutes WHERE user_id = ? AND group_id = ?'
-      ).run(target.id, groupId);
+      await supabase
+        .from('mutes')
+        .delete()
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
 
       return ctx.reply(`🔊 ${getUsername(target)} has been unmuted`);
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-      if (err.description && err.description.includes('not enough rights')) {
-        return ctx.reply(
-          "🚫 I don't have enough permissions. Please make me an admin with all permissions"
-        );
+      if (err.description?.includes('not enough rights')) {
+        return ctx.reply("🚫 I don't have enough permissions. Please make me an admin with all permissions");
       }
       return ctx.reply('❌ Failed to unmute user');
     }

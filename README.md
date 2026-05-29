@@ -1,45 +1,61 @@
 # Group Management Bot
 
-A production-ready Telegram group management bot built with **Node.js + Telegraf + SQLite**.
+A production-ready Telegram group management bot — **Node.js + Telegraf + Supabase**, deployed on **Vercel**.
 
 ## Tech Stack
-
 - **Runtime**: Node.js
 - **Framework**: Telegraf v4
-- **Database**: SQLite via better-sqlite3
-- **Environment**: dotenv
+- **Database**: Supabase (PostgreSQL)
+- **Hosting**: Vercel (serverless webhook)
 
-## Setup
+---
 
-1. **Clone the repo & install dependencies**
-   ```bash
-   npm install
-   ```
+## Setup Guide
 
-2. **Configure environment**
+### Step 1 — Create accounts (all free)
+- **Supabase**: https://supabase.com → create a new project
+- **Vercel**: https://vercel.com → create a new project
+- **GitHub**: create a new repository for this code
 
-   Edit the `.env` file:
-   ```
-   BOT_TOKEN=your_bot_token_here
-   OWNER_ID=your_telegram_user_id_here
-   ```
-   Get your `OWNER_ID` by messaging [@userinfobot](https://t.me/userinfobot) on Telegram.
+### Step 2 — Set up the Supabase database
+1. Open your Supabase project → **SQL Editor** → **New query**
+2. Paste the entire contents of `supabase_setup.sql`
+3. Click **Run** — all 8 tables will be created
 
-3. **Start the bot**
-   ```bash
-   node index.js
-   ```
-   Or with auto-restart on file changes (Node.js 18+):
-   ```bash
-   npm run dev
-   ```
+### Step 3 — Get your credentials
 
-4. **Add the bot to your group as admin** with these permissions:
-   - ✅ Delete messages
-   - ✅ Ban users
-   - ✅ Restrict members
+| Variable | Where to find it |
+|---|---|
+| `BOT_TOKEN` | @BotFather on Telegram |
+| `OWNER_ID` | Message @userinfobot on Telegram |
+| `SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+| `SUPABASE_KEY` | Supabase → Project Settings → API → `anon` public key |
+| `WEBHOOK_URL` | Your Vercel deployment URL (set after deploy) |
 
-The database (`data/bot.db`) is created automatically on first run.
+### Step 4 — Deploy to Vercel
+1. Push this code to your new GitHub repo
+2. Go to Vercel → **Add New Project** → import your GitHub repo
+3. In **Environment Variables**, add all 5 variables from Step 3
+   - Leave `WEBHOOK_URL` as your Vercel project URL: `https://your-project.vercel.app`
+4. Click **Deploy**
+
+### Step 5 — Register the webhook (ONE TIME ONLY)
+After Vercel deploys, run this locally:
+```bash
+npm install
+node index.js
+```
+You should see:
+```
+✅ Webhook successfully registered:
+   https://your-project.vercel.app/api/bot
+```
+
+### Step 6 — Add bot to your group
+Add the bot as **admin** with these permissions:
+- ✅ Delete messages
+- ✅ Ban users
+- ✅ Restrict members
 
 ---
 
@@ -48,12 +64,12 @@ The database (`data/bot.db`) is created automatically on first run.
 | Command | Description | Who |
 |---|---|---|
 | `/admin` | Promote user to bot-admin (reply) | Owner only |
-| `/warn [reason]` | Warn a user — 3 warnings = auto-mute 6h (reply) | Admins |
-| `/unwarn` | Remove the most recent warning (reply) | Admins |
-| `/warnings` | Check user warning count (reply) | Admins |
-| `/mute [Xh\|Xd]` | Mute user for duration, default 1h (reply) | Admins |
+| `/warn [reason]` | Warn user — 3 warnings = 6h auto-mute (reply) | Admins |
+| `/unwarn` | Remove most recent warning (reply) | Admins |
+| `/warnings` | Check warning count (reply) | Admins |
+| `/mute [Xh\|Xd]` | Mute user, default 1h (reply) | Admins |
 | `/unmute` | Unmute user (reply) | Admins |
-| `/ban [reason]` | Ban user from group (reply) | Admins |
+| `/ban [reason]` | Ban user (reply) | Admins |
 | `/unban` | Unban user (reply) | Admins |
 | `/stats` | Group statistics | Everyone |
 | `/userinfo` | User profile — self or reply target | Everyone |
@@ -62,43 +78,16 @@ The database (`data/bot.db`) is created automatically on first run.
 
 ---
 
-## Auto-Protection
-
-### Antiflood
-Detects users sending too many messages too fast.
-- **Trigger**: more than `antiflood_limit` messages in `antiflood_window` seconds (default: 5 msgs / 3s)
-- **Action 1**: Warning message
-- **Action 2**: Mute for 10 minutes
-
-Enable per group: `/antiflood on`
-
-### Antispam
-Detects repeated identical messages.
-- **Trigger**: same message sent within `antispam_window` seconds (default: 10s window, 3 repeats)
-- **Action 1**: Delete message + warning
-- **Action 2**: Mute for 30 minutes
-
-Enable per group: `/antispam on`
-
----
-
-## Permissions
-
-- **Owner** (`OWNER_ID` in `.env`): Can use `/admin` to promote users
-- **Admins**: Telegram admins + owner + bot-promoted users (via `/admin`)
-- **Everyone**: `/stats`, `/userinfo`
-
----
-
 ## Project Structure
 
 ```
-├── index.js              # Entry point
+├── api/
+│   └── bot.js            # Vercel serverless function (webhook)
 ├── config/
-│   └── config.js         # Env config loader
+│   └── config.js         # Env loader + validation
 ├── src/
 │   ├── database/
-│   │   └── db.js         # SQLite init & schema
+│   │   └── db.js         # Supabase client
 │   ├── utils/
 │   │   └── permissions.js
 │   ├── commands/
@@ -112,7 +101,9 @@ Enable per group: `/antispam on`
 │       ├── antiflood.js
 │       ├── antispam.js
 │       └── newMember.js
-├── data/                 # Auto-created — SQLite DB lives here
-├── .env                  # Your secrets (not in git)
-└── package.json
+├── index.js              # Webhook registration script (run once)
+├── supabase_setup.sql    # Run in Supabase SQL Editor
+├── vercel.json
+├── package.json
+└── .env                  # Local only — never commit this
 ```

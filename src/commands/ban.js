@@ -1,13 +1,10 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 const { requireAdmin } = require('../utils/permissions');
 
 function getUsername(user) {
   return user.username ? `@${user.username}` : user.first_name;
 }
 
-/**
- * /ban [reason] — Ban a user from the group
- */
 function registerBan(bot) {
   bot.command('ban', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -25,28 +22,25 @@ function registerBan(bot) {
     try {
       await ctx.telegram.banChatMember(groupId, target.id);
 
-      db.prepare(
-        'INSERT INTO bans (user_id, group_id, reason, date, banned_by) VALUES (?, ?, ?, ?, ?)'
-      ).run(target.id, groupId, reason, new Date().toISOString(), ctx.from.id);
+      await supabase.from('bans').insert({
+        user_id: target.id,
+        group_id: groupId,
+        reason,
+        date: new Date().toISOString(),
+        banned_by: ctx.from.id,
+      });
 
-      return ctx.reply(
-        `🚫 ${getUsername(target)} has been banned\nReason: ${reason}`
-      );
+      return ctx.reply(`🚫 ${getUsername(target)} has been banned\nReason: ${reason}`);
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-      if (err.description && err.description.includes('not enough rights')) {
-        return ctx.reply(
-          "🚫 I don't have enough permissions. Please make me an admin with all permissions"
-        );
+      if (err.description?.includes('not enough rights')) {
+        return ctx.reply("🚫 I don't have enough permissions. Please make me an admin with all permissions");
       }
       return ctx.reply('❌ Failed to ban user');
     }
   });
 }
 
-/**
- * /unban — Unban a user from the group
- */
 function registerUnban(bot) {
   bot.command('unban', requireAdmin, async (ctx) => {
     if (!['group', 'supergroup'].includes(ctx.chat.type)) {
@@ -62,17 +56,17 @@ function registerUnban(bot) {
     try {
       await ctx.telegram.unbanChatMember(groupId, target.id);
 
-      db.prepare(
-        'DELETE FROM bans WHERE user_id = ? AND group_id = ?'
-      ).run(target.id, groupId);
+      await supabase
+        .from('bans')
+        .delete()
+        .eq('user_id', target.id)
+        .eq('group_id', groupId);
 
       return ctx.reply(`✅ ${getUsername(target)} has been unbanned`);
     } catch (err) {
       console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-      if (err.description && err.description.includes('not enough rights')) {
-        return ctx.reply(
-          "🚫 I don't have enough permissions. Please make me an admin with all permissions"
-        );
+      if (err.description?.includes('not enough rights')) {
+        return ctx.reply("🚫 I don't have enough permissions. Please make me an admin with all permissions");
       }
       return ctx.reply('❌ Failed to unban user');
     }

@@ -1,60 +1,56 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 
-// In-memory spam tracker: "userId:groupId" → { lastMessage: "", lastTime: 0, count: 0 }
-const spamMap = new Map();
-
-/**
- * Antispam middleware — call this on every group text message
- */
 async function antispamHandler(ctx, next) {
   if (!['group', 'supergroup'].includes(ctx.chat?.type)) return next();
   if (!ctx.from || ctx.from.is_bot) return next();
   if (!ctx.message?.text) return next();
 
   const groupId = ctx.chat.id;
+  const userId = ctx.from.id;
+  const text = ctx.message.text;
+  const now = Date.now();
 
   // Load settings
-  const settings = db
-    .prepare('SELECT antispam_enabled, antispam_window, antispam_max FROM settings WHERE group_id = ?')
-    .get(groupId);
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('antispam_enabled, antispam_window, antispam_max')
+    .eq('group_id', groupId)
+    .single();
 
-  if (!settings || !settings.antispam_enabled) return next();
+  if (!settings?.antispam_enabled) return next();
 
   const { antispam_window, antispam_max } = settings;
-  const key = `${ctx.from.id}:${groupId}`;
-  const now = Date.now();
-  const text = ctx.message.text;
-
-  if (!spamMap.has(key)) {
-    spamMap.set(key, { lastMessage: '', lastTime: 0, count: 0 });
-  }
-
-  const entry = spamMap.get(key);
   const windowMs = antispam_window * 1000;
-  const isDuplicate = text === entry.lastMessage && now - entry.lastTime < windowMs;
+
+  // Get spam tracker entry
+  const { data: entry } = await supabase
+    .from('spam_tracker')
+    .select('last_message, last_time, count')
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .single();
+
+  const lastMessage = entry?.last_message || '';
+  const lastTime = entry?.last_time || 0;
+  const count = entry?.count || 0;
+
+  const isDuplicate = text === lastMessage && now - lastTime < windowMs;
 
   if (isDuplicate) {
-    entry.count += 1;
+    const newCount = count + 1;
 
     // Delete duplicate message
-    try {
-      await ctx.deleteMessage();
-    } catch (err) {
-      console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
-    }
+    try { await ctx.deleteMessage(); } catch (_) {}
 
-    if (entry.count === 1) {
-      await ctx.reply(
-        `🔁 @${ctx.from.username || ctx.from.first_name} please don't repeat messages`
-      );
-    } else if (entry.count >= antispam_max) {
-      // Mute for 30 minutes
-      const thirtyMinSeconds = 30 * 60;
-      const untilDate = Math.floor(now / 1000) + thirtyMinSeconds;
+    if (newCount === 1) {
+      await ctx.reply(`🔁 @${ctx.from.username || ctx.from.first_name} please don't repeat messages`);
+    } else if (newCount >= antispam_max) {
+      // Mute 30 minutes
+      const untilDate = Math.floor(now / 1000) + 1800;
       const untilISO = new Date(untilDate * 1000).toISOString();
 
       try {
-        await ctx.telegram.restrictChatMember(groupId, ctx.from.id, {
+        await ctx.telegram.restrictChatMember(groupId, userId, {
           permissions: {
             can_send_messages: false,
             can_send_audios: false,
@@ -66,29 +62,31 @@ async function antispamHandler(ctx, next) {
           until_date: untilDate,
         });
 
-        db.prepare(
-          'INSERT INTO mutes (user_id, group_id, until, muted_by) VALUES (?, ?, ?, ?)'
-        ).run(ctx.from.id, groupId, untilISO, ctx.botInfo.id);
-
-        await ctx.reply(
-          `🔇 @${ctx.from.username || ctx.from.first_name} muted 30 min for spamming`
-        );
+        await supabase.from('mutes').insert({ user_id: userId, group_id: groupId, until: untilISO, muted_by: 0 });
+        await ctx.reply(`🔇 @${ctx.from.username || ctx.from.first_name} muted 30 min for spamming`);
       } catch (err) {
         console.error(`[ERROR ${new Date().toISOString()}]`, err.message);
       }
 
-      // Reset after mute
-      entry.count = 0;
-      entry.lastMessage = '';
-      entry.lastTime = 0;
+      // Reset tracker
+      await supabase
+        .from('spam_tracker')
+        .upsert({ user_id: userId, group_id: groupId, last_message: '', last_time: 0, count: 0 }, { onConflict: 'user_id,group_id' });
+
+      return;
     }
-    return; // Don't propagate duplicate
+
+    await supabase
+      .from('spam_tracker')
+      .upsert({ user_id: userId, group_id: groupId, last_message: text, last_time: now, count: newCount }, { onConflict: 'user_id,group_id' });
+
+    return;
   }
 
-  // Not a duplicate — reset tracker
-  entry.count = 0;
-  entry.lastMessage = text;
-  entry.lastTime = now;
+  // Not a duplicate — reset
+  await supabase
+    .from('spam_tracker')
+    .upsert({ user_id: userId, group_id: groupId, last_message: text, last_time: now, count: 0 }, { onConflict: 'user_id,group_id' });
 
   return next();
 }

@@ -1,10 +1,7 @@
-const db = require('../database/db');
+const supabase = require('../database/db');
 
-/**
- * Handles bot being added to or removed from a group
- */
 function registerNewMember(bot) {
-  bot.on('my_chat_member', (ctx) => {
+  bot.on('my_chat_member', async (ctx) => {
     const update = ctx.myChatMember;
     if (!update) return;
 
@@ -12,19 +9,19 @@ function registerNewMember(bot) {
     const status = new_chat_member?.status;
 
     if (status === 'member' || status === 'administrator') {
-      // Bot was added to a group
-      const existing = db
-        .prepare('SELECT 1 FROM settings WHERE group_id = ?')
-        .get(chat.id);
-
-      if (!existing) {
-        db.prepare(
-          `INSERT INTO settings
-            (group_id, antiflood_enabled, antiflood_limit, antiflood_window,
-             antispam_enabled, antispam_window, antispam_max)
-           VALUES (?, 0, 5, 3, 0, 10, 3)`
-        ).run(chat.id);
-      }
+      // Bot was added — insert default settings if not exists
+      await supabase.from('settings').upsert(
+        {
+          group_id: chat.id,
+          antiflood_enabled: 0,
+          antiflood_limit: 5,
+          antiflood_window: 3,
+          antispam_enabled: 0,
+          antispam_window: 10,
+          antispam_max: 3,
+        },
+        { onConflict: 'group_id', ignoreDuplicates: true }
+      );
 
       console.log(`✅ Bot added to group: ${chat.title} (ID: ${chat.id})`);
     } else if (status === 'kicked' || status === 'left') {
